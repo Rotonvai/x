@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Smart Reminders</title>
+    <meta name="description" content="Responsive reminder app with smooth Lenis scrolling, persistent storage, sound & vibration alerts (60s)." />
+    <style>
+        :root{
+            --bg:#f5f7fb; --card:#ffffff; --accent:#2563eb; --accent-2:#06b6d4;
+            --muted:#6b7280; --radius:12px; --glass: rgba(255,255,255,0.6);
+        }
+        *{box-sizing:border-box}
+        html,body{height:100%}
+        body{
+            margin:0;
+            font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;
+            background:linear-gradient(180deg,var(--bg),#eef2ff 60%);
+            color:#0f172a;
+            -webkit-font-smoothing:antialiased;
+            -moz-osx-font-smoothing:grayscale;
+            padding:32px;
+        }
+
+        .wrap{max-width:920px;margin:0 auto;display:grid;grid-template-columns:1fr 380px;gap:24px;}
+        @media (max-width:880px){ .wrap{grid-template-columns:1fr; padding-bottom:60px;} }
+
+        header{
+            grid-column:1/-1;
+            display:flex;align-items:center;justify-content:space-between;gap:16px;
+        }
+        .brand{display:flex;gap:12px;align-items:center}
+        .logo{
+            width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));
+            display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px;box-shadow:0 6px 18px rgba(37,99,235,0.18);
+        }
+        h1{margin:0;font-size:20px}
+        p.lead{margin:0;color:var(--muted);font-size:14px}
+
+        /* form / card */
+        .card{
+            background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:0 6px 20px rgba(13,38,67,0.06);
+        }
+
+        .form-row{display:flex;gap:12px;margin-bottom:12px}
+        .form-row .field{flex:1}
+        label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+        input[type="text"],input[type="datetime-local"],select{
+            width:100%;padding:10px 12px;border:1px solid #e6e9ef;border-radius:8px;background:linear-gradient(180deg,white, #fbfdff);
+            font-size:14px;
+        }
+        .actions{display:flex;gap:10px;margin-top:8px}
+        button{
+            border:0;padding:10px 14px;border-radius:10px;background:var(--accent);color:white;font-weight:600;cursor:pointer;
+        }
+        button.secondary{background:#e6eefc;color:var(--accent)}
+        .muted{color:var(--muted);font-size:13px}
+
+        /* reminders list */
+        .list{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+        .rem{
+            display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:10px;
+            background:linear-gradient(180deg,var(--glass),#fff);border:1px solid rgba(15,23,42,0.04);
+        }
+        .rem .left{flex:1;min-width:0}
+        .rem h3{margin:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .rem p{margin:2px 0 0;color:var(--muted);font-size:13px}
+        .rem .meta{display:flex;gap:10px;align-items:center}
+        .chip{background:#eef2ff;color:var(--accent);padding:6px 8px;border-radius:999px;font-size:12px;font-weight:600}
+
+        .controls{display:flex;gap:8px}
+        .icon-btn{background:transparent;border:0;padding:8px;border-radius:8px;cursor:pointer}
+        .icon-btn.del{color:#ef4444}
+        .notice{padding:10px;border-radius:8px;background:#fff8e6;color:#7c4a00;font-size:13px;margin-top:12px}
+
+        /* modal / active alarm panel */
+        .alarm-panel{
+            position:fixed;right:20px;bottom:20px;z-index:60;min-width:260px;border-radius:12px;padding:14px;
+            background:linear-gradient(180deg,#fff, #f8fbff);box-shadow:0 12px 40px rgba(9,30,66,0.12);border:1px solid rgba(2,6,23,0.06);
+            display:none;align-items:center;gap:12px;
+        }
+        .alarm-panel.show{display:flex}
+        .countdown{font-weight:700;color:var(--accent);font-size:18px}
+        .snooze{background:#ffedd5;color:#92400e;padding:8px 10px;border-radius:8px;border:0;cursor:pointer}
+
+        footer{grid-column:1/-1;margin-top:18px;text-align:center;color:var(--muted);font-size:13px}
+        /* subtle long content to showcase Lenis smooth scroll */
+        .long{
+            margin-top:18px;line-height:1.6;color:var(--muted);max-height:420px;overflow:auto;padding-right:12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <header>
+            <div class="brand">
+                <div class="logo">R</div>
+                <div>
+                    <h1>Smart Reminders</h1>
+                    <p class="lead">Create schedules with sound + vibration alerts. Alerts last exactly 60 seconds.</p>
+                </div>
+            </div>
+            <div class="muted">Fully responsive · Smooth scrolling</div>
+        </header>
+
+      
+
+        <!-- right column: form & list -->
+        <aside class="card" aria-labelledby="formTitle">
+            <h3 id="formTitle">Create Reminder</h3>
+            <div style="margin-top:8px" class="muted">Set a title and choose date & time (local).</div>
+
+            <div style="margin-top:12px">
+                <div class="form-row">
+                    <div class="field">
+                        <label for="title">Title</label>
+                        <input id="title" type="text" placeholder="Meeting, Call, Take meds..." />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="field">
+                        <label for="datetime">Date & Time</label>
+                        <input id="datetime" type="datetime-local" />
+                    </div>
+                </div>
+                <div class="actions">
+                    <button id="addBtn">Set Reminder</button>
+                    <button id="testBtn" class="secondary" title="Test sound/vibrate">Test Alert</button>
+                </div>
+                <div class="muted" style="margin-top:8px">Tip: On mobile, allow sound when prompted. Creating a reminder counts as user interaction for audio.</div>
+            </div>
+
+            <section style="margin-top:16px">
+                <h4 style="margin:0">Reminders</h4>
+                <div id="list" class="list" aria-live="polite"></div>
+                <div id="empty" class="muted" style="margin-top:10px">No reminders yet.</div>
+            </section>
+        </aside>
+
+        <footer>Reminders saved in your browser · Local only · Built for clarity & usability</footer>
+    </div>
+
+    <!-- floating alarm panel -->
+    <div id="alarmPanel" class="alarm-panel" role="status" aria-live="assertive">
+        <div style="flex:1">
+            <div style="font-size:13px;color:var(--muted)">Alarm active</div>
+            <div class="countdown" id="countdownText">60s</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+            <button id="snoozeBtn" class="snooze">Snooze 5m</button>
+            <button id="stopBtn" style="background:#ef4444;color:white;border:0;padding:8px 10px;border-radius:8px;cursor:pointer">Stop</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/lenis@latest/dist/lenis.min.js"></script>
+    <script>
+        // Simple, modern reminder app
+        // Data model: { id, title, timeISO, triggered:false }
+        const titleInput = document.getElementById('title');
+        const dtInput = document.getElementById('datetime');
+        const addBtn = document.getElementById('addBtn');
+        const testBtn = document.getElementById('testBtn');
+        const listEl = document.getElementById('list');
+        const emptyEl = document.getElementById('empty');
+        const alarmPanel = document.getElementById('alarmPanel');
+        const countdownText = document.getElementById('countdownText');
+        const snoozeBtn = document.getElementById('snoozeBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        let reminders = JSON.parse(localStorage.getItem('smart_reminders_v1') || '[]');
+        let audioCtx = null;
+        let alarmNodes = null;
+        let vibrationTimer = null;
+        let alarmCountdownTimer = null;
+        let activeAlarm = null; // reminder id currently alarming
+        const ALARM_DURATION = 60_000; // 60 seconds
+
+        // Lenis smooth scroll
+        const lenis = new Lenis({ duration: 1.2, easing: (t)=> Math.min(1,1.001 - Math.pow(2, -10*t)) });
+        function raf(time){
+            lenis.raf(time);
+            requestAnimationFrame(raf);
+        }
+        requestAnimationFrame(raf);
+
+        // Utility
+        const save = () => localStorage.setItem('smart_reminders_v1', JSON.stringify(reminders));
+        const uid = ()=> Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+
+        // Render
+        function render(){
+            listEl.innerHTML = '';
+            if(reminders.length === 0){
+                emptyEl.style.display = 'block';
+            } else {
+                emptyEl.style.display = 'none';
+            }
+            const now = Date.now();
+            reminders.sort((a,b)=> new Date(a.timeISO) - new Date(b.timeISO));
+            reminders.forEach(r=>{
+                const el = document.createElement('div');
+                el.className = 'rem';
+                if(r.id === activeAlarm) el.style.border = '2px solid rgba(37,99,235,0.12)';
+                const left = document.createElement('div'); left.className='left';
+                const title = document.createElement('h3'); title.textContent = r.title || 'Untitled';
+                const timeP = document.createElement('p');
+                const dt = new Date(r.timeISO);
+                const relative = dt - now;
+                const mins = Math.round(relative/60000);
+                timeP.textContent = isNaN(dt) ? 'Invalid date' : dt.toLocaleString() + (relative>0 ? ` · in ${Math.max(0,mins)}m` : ' · due');
+                left.appendChild(title); left.appendChild(timeP);
+
+                const meta = document.createElement('div'); meta.className='meta';
+                if(!r.triggered && new Date(r.timeISO) <= new Date()){
+                    const dot = document.createElement('div'); dot.className='chip'; dot.textContent = 'Due';
+                    meta.appendChild(dot);
+                }
+
+                const controls = document.createElement('div'); controls.className='controls';
+                const test = document.createElement('button'); test.className='icon-btn'; test.title='Trigger now'; test.textContent='🔔';
+                test.onclick = ()=> triggerAlarm(r.id, true);
+                const del = document.createElement('button'); del.className='icon-btn del'; del.title='Delete'; del.textContent='🗑';
+                del.onclick = ()=> { reminders = reminders.filter(x=>x.id!==r.id); save(); render(); };
+                controls.appendChild(test); controls.appendChild(del);
+                meta.appendChild(controls);
+
+                el.appendChild(left);
+                el.appendChild(meta);
+                listEl.appendChild(el);
+            });
+        }
+
+        // Initialize audio context on a user gesture (most browsers require)
+        function ensureAudioContext(){
+            if(audioCtx && audioCtx.state !== 'closed') return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        // Play alarm for exactly ALARM_DURATION ms. If immediate = true, ensure user gesture
+        function playAlarm(){
+            try{
+                ensureAudioContext();
+                // create oscillator with warm tone
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime); // starting tone
+                // gentle low-pass
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass'; filter.frequency.value = 1400;
+                gain.gain.setValueAtTime(0.02, audioCtx.currentTime); // low volume
+                osc.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+                osc.start();
+                // slight pulsing: modulate frequency every 400ms
+                let step = 0;
+                const mod = setInterval(()=> {
+                    step = (step+1)%3;
+                    const f = 740 + step*70;
+                    osc.frequency.setTargetAtTime(f, audioCtx.currentTime, 0.05);
+                }, 400);
+
+                alarmNodes = { osc, gain, mod };
+
+                // stop after ALARM_DURATION
+                alarmCountdownTimer = setTimeout(stopAlarm, ALARM_DURATION);
+            }catch(e){
+                console.warn('Audio failed:', e);
+            }
+            // Vibrate for ALARM_DURATION on mobile: repeat small pulses
+            if(navigator.vibrate){
+                const start = Date.now();
+                vibrationTimer = setInterval(()=>{
+                    if(Date.now() - start >= ALARM_DURATION){ navigator.vibrate(0); clearInterval(vibrationTimer); return; }
+                    // short pulse
+                    navigator.vibrate([400,200]);
+                }, 1200);
+            }
+            showAlarmPanel(ALARM_DURATION);
+        }
+
+        function stopAlarm(){
+            if(alarmNodes){
+                try{
+                    alarmNodes.osc.stop();
+                }catch(e){}
+                try{ alarmNodes.osc.disconnect(); }catch(e){}
+                try{ alarmNodes.mod && clearInterval(alarmNodes.mod); }catch(e){}
+            }
+            if(vibrationTimer) { clearInterval(vibrationTimer); vibrationTimer = null; navigator.vibrate(0); }
+            if(alarmCountdownTimer){ clearTimeout(alarmCountdownTimer); alarmCountdownTimer = null; }
+            alarmNodes = null;
+            activeAlarm = null;
+            hideAlarmPanel();
+            render();
+        }
+
+        function showAlarmPanel(ms){
+            let remaining = Math.ceil(ms/1000);
+            countdownText.textContent = remaining + 's';
+            alarmPanel.classList.add('show');
+            // update countdown every second
+            const t0 = Date.now();
+            const interval = setInterval(()=>{
+                remaining = Math.max(0, Math.ceil((ms - (Date.now()-t0))/1000));
+                countdownText.textContent = remaining + 's';
+                if(remaining <= 0){ clearInterval(interval); }
+            }, 250);
+        }
+
+        function hideAlarmPanel(){ alarmPanel.classList.remove('show'); countdownText.textContent = '60s'; }
+
+        // Trigger alarm for a reminder id. immediateOverride forces sound even if not due.
+        function triggerAlarm(id, immediateOverride = false){
+            const r = reminders.find(x=>x.id===id);
+            if(!r) return;
+            // mark triggered
+            r.triggered = true;
+            activeAlarm = r.id;
+            save();
+            render();
+            // Play alarm. Ensure audioctx was created by a user action (most interactions like button press count)
+            playAlarm();
+            // If immediateOverride, you already came from a click - audio should be allowed.
+        }
+
+        // Periodic checker to trigger due reminders
+        setInterval(()=>{
+            const now = Date.now();
+            let changed = false;
+            for(const r of reminders){
+                if(!r.triggered && new Date(r.timeISO).getTime() <= now){
+                    r.triggered = true;
+                    activeAlarm = r.id;
+                    changed = true;
+                    // Play alarm (no user gesture) — often allowed if user previously interacted with the page (we create audio ctx on interactions)
+                    playAlarm();
+                    break; // only alarm one at a time
+                }
+            }
+            if(changed) save(), render();
+        }, 1000);
+
+        // Add reminder
+        addBtn.addEventListener('click', e=>{
+            // create audio context on user gesture to satisfy permission policies
+            ensureAudioContext();
+
+            const title = titleInput.value.trim();
+            const timeVal = dtInput.value;
+            if(!timeVal){
+                alert('Please select date & time for the reminder.');
+                return;
+            }
+            const iso = new Date(timeVal).toISOString();
+            reminders.push({ id: uid(), title: title || 'Untitled', timeISO: iso, triggered: false });
+            save();
+            titleInput.value = ''; dtInput.value = '';
+            render();
+        });
+
+        testBtn.addEventListener('click', e=>{
+            ensureAudioContext();
+            // create a temporary pseudo-reminder and trigger
+            const tempId = uid();
+            reminders.push({ id: tempId, title: 'Test Alert', timeISO: new Date().toISOString(), triggered: true });
+            activeAlarm = tempId;
+            save(); render();
+            playAlarm();
+        });
+
+        // Snooze / Stop controls
+        snoozeBtn.addEventListener('click', ()=>{
+            if(!activeAlarm) return;
+            // find reminder and postpone 5 minutes
+            const r = reminders.find(x=>x.id===activeAlarm);
+            if(r){
+                const newTime = new Date(Date.now() + 5*60*1000).toISOString();
+                r.timeISO = newTime;
+                r.triggered = false;
+                save();
+            }
+            stopAlarm();
+            render();
+        });
+        stopBtn.addEventListener('click', ()=>{
+            // stop alarm but keep reminder marked triggered (so it won't fire again)
+            stopAlarm();
+        });
+
+        // Initial render
+        render();
+
+        // Accessibility: allow keyboard to create audio context by focusing & pressing Enter in inputs
+        ['title','datetime'].forEach(id=>{
+            document.getElementById(id).addEventListener('keydown', ()=> ensureAudioContext());
+        });
+
+        // Cleanup when unloading
+        window.addEventListener('beforeunload', ()=> {
+            // stop audio if active
+            try{ stopAlarm(); }catch(e){}
+        });
+
+        // Ensure some default sample reminders for first-time users
+        if(reminders.length === 0){
+            const now = new Date();
+            const in1 = new Date(now.getTime()+2*60*1000);
+            reminders.push({ id: uid(), title: 'Sample: Meeting in 2m', timeISO: in1.toISOString(), triggered:false });
+            save(); render();
+        }
+    </script>
+</body>
+</html>
